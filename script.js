@@ -19,42 +19,47 @@ async function updateLiveStandings() {
     }
 }
 
-function renderDrivers(standings) {
-    const container = document.getElementById('drivers-container');
-    const trackHeight = document.getElementById('track').offsetHeight - 60;
+function renderTrack(layerId, data, mode) {
+    const layer = document.getElementById(layerId);
+    if (!layer) return;
     
-    // Math constants
-    const maxPts = Math.max(...standings.map(d => parseFloat(d.points)));
-    // P1 is at 0px from top, P20 is at trackHeight
-    
-    standings.forEach((entry, index) => {
-        const driver = entry.Driver;
-        const constructor = entry.Constructors[0];
-        const pts = parseFloat(entry.points);
-        const driverId = driver.driverId;
+    const trackHeight = layer.parentElement.offsetHeight - 100;
+    const maxPoints = Math.max(...data.map(d => parseFloat(d.points)));
+    const sortedData = [...data].sort((a, b) => b.points - a.points);
+    let laneMemory = Array(LANE_OFFSETS.length).fill(-200);
 
-        let card = document.getElementById(driverId);
-        if (!card) {
-            card = document.createElement('div');
-            card.id = driverId;
-            card.className = 'driver-card';
-            container.appendChild(card);
+    sortedData.forEach((entry, index) => {
+        const points = parseFloat(entry.points);
+        
+        // --- ADDED: ZERO POINTS SPECIAL HANDLING ---
+        let yPos;
+        let chosenLane;
+
+        if (maxPoints === 0 || points === 0) {
+            // If points are 0, stick them to the bottom
+            yPos = trackHeight;
+            // Spread them across lanes using the index to ensure even distribution
+            chosenLane = index % LANE_OFFSETS.length;
+        } else {
+            // Standard Proportional Y calculation
+            yPos = ((maxPoints - points) / maxPoints) * trackHeight;
+
+            // Middle-out logic for non-zero points
+            chosenLane = 0; 
+            for (let l = 0; l < LANE_OFFSETS.length; l++) {
+                if (yPos > laneMemory[l] + VERTICAL_BUFFER) {
+                    chosenLane = l;
+                    break;
+                }
+            }
         }
+        // --------------------------------------------
 
-        // Calculate Y-Position
-        const ratio = maxPts > 0 ? (maxPts - pts) / maxPts : 0;
-        const yPos = ratio * trackHeight;
+        laneMemory[chosenLane] = yPos;
 
-        // Apply team color and text
-        card.style.setProperty('--team-color', teamColors[constructor.constructorId] || '#fff');
-        card.innerHTML = `
-            <div class="driver-name">${driver.familyName}</div>
-            <div class="driver-pts">${pts} PTS | ${constructor.name}</div>
-        `;
-
-        // Horizontal Spacing: Stagger drivers so they don't overlap
-        const xPos = index % 2 === 0 ? "10%" : "45%";
-        card.style.transform = `translate(${xPos}, ${yPos}px)`;
+        // ... rest of your DOM creation logic remains the same ...
+        const teamId = mode === 'driver' ? entry.Constructors[0].constructorId : entry.Constructor.constructorId;
+        // etc...
     });
 }
 
